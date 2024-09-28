@@ -8,7 +8,7 @@ app = FastAPI()
 connected_clients = []
 
 # Maximum allowed size of uploaded file (50KB = 50 * 1024 bytes)
-MAX_IMAGE_SIZE = 50 * 1024  # 50KB
+MAX_IMAGE_SIZE = 100 * 1024  # 50KB
 IMAGE_FOLDER = 'images'
 LATEST_IMAGE_PATH = os.path.join(IMAGE_FOLDER, 'latest_image.jpg')
 
