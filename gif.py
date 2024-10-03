@@ -1,4 +1,4 @@
-from fastapi import FastAPI, WebSocket, UploadFile, File
+from fastapi import FastAPI, WebSocket, UploadFile, File, WebSocketDisconnect
 from fastapi.responses import FileResponse
 import os
 
