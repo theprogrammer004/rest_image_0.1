@@ -1,4 +1,4 @@
-from fastapi import FastAPI, WebSocket, UploadFile, File, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File
 from fastapi.responses import FileResponse
 import os
 
@@ -7,14 +7,31 @@ app = FastAPI()
 # Global variable to store WebSocket connections
 connected_clients = []
 
-# Maximum allowed size of uploaded file (200KB for GIFs)
-MAX_IMAGE_SIZE = 200 * 1024  # 200KB
-IMAGE_FOLDER = 'images'
-LATEST_IMAGE_PATH = os.path.join(IMAGE_FOLDER, 'latest_image.gif')  # Now handling GIF files
+# Maximum allowed size for files
+MAX_IMAGE_SIZE = 100 * 1024  # 100KB
+MAX_MP3_SIZE = 5 * 1024 * 1024  # 5MB
+MAX_VIDEO_SIZE = 20 * 1024 * 1024  # 20MB
+# Maximum allowed size for GIF files
+MAX_GIF_SIZE = 10 * 1024 * 1024  # 10MB
 
-# Ensure the images directory exists
-if not os.path.exists(IMAGE_FOLDER):
-    os.makedirs(IMAGE_FOLDER)
+# Directories to store files
+IMAGE_FOLDER = 'images'
+MP3_FOLDER = 'mp3'
+VIDEO_FOLDER = 'videos'
+# Directory to store GIF files
+GIF_FOLDER = 'gifs'
+
+# Paths for the latest uploaded files
+LATEST_IMAGE_PATH = os.path.join(IMAGE_FOLDER, 'latest_image.jpg')
+LATEST_MP3_PATH = os.path.join(MP3_FOLDER, 'latest_audio.mp3')
+LATEST_VIDEO_PATH = os.path.join(VIDEO_FOLDER, 'latest_video.mp4')
+# Path for the latest uploaded GIF
+LATEST_GIF_PATH = os.path.join(GIF_FOLDER, 'latest_gif.gif')
+
+# Ensure the directories exist
+for folder in [IMAGE_FOLDER, MP3_FOLDER, VIDEO_FOLDER, GIF_FOLDER]:
+    if not os.path.exists(folder):
+        os.makedirs(folder)
 
 # Endpoint to upload an image to the API
 @app.post("/upload_image")
@@ -22,11 +39,11 @@ async def upload_image(image: UploadFile = File(...)):
     # Read image content
     image_data = await image.read()
 
-    # Check image size (limit to 200KB for GIFs)
+    # Check image size (limit to 100KB)
     if len(image_data) > MAX_IMAGE_SIZE:
         return {"error": f"Image too large, must be {MAX_IMAGE_SIZE / 1024}KB or less"}
 
-    # Save the image as the latest image (GIF)
+    # Save the image as the latest image
     with open(LATEST_IMAGE_PATH, "wb") as f:
         f.write(image_data)
 
@@ -37,15 +54,110 @@ async def upload_image(image: UploadFile = File(...)):
         except Exception as e:
             print(f"Failed to notify client: {e}")
 
-    return {"message": "GIF uploaded successfully"}
+    return {"message": "Image uploaded successfully"}
 
-# Endpoint for ESP32 to get the latest GIF
+# Endpoint to upload an MP3 file to the API
+@app.post("/upload_mp3")
+async def upload_mp3(mp3: UploadFile = File(...)):
+    # Read MP3 content
+    mp3_data = await mp3.read()
+
+    # Check MP3 size (limit to 5MB)
+    if len(mp3_data) > MAX_MP3_SIZE:
+        return {"error": f"MP3 too large, must be {MAX_MP3_SIZE / (1024 * 1024)}MB or less"}
+
+    # Save the MP3 as the latest MP3
+    with open(LATEST_MP3_PATH, "wb") as f:
+        f.write(mp3_data)
+
+    # Notify all connected WebSocket clients about the new MP3
+    for client in connected_clients:
+        try:
+            await client.send_text("new_mp3_uploaded")
+        except Exception as e:
+            print(f"Failed to notify client: {e}")
+
+    return {"message": "MP3 uploaded successfully"}
+
+# Endpoint to upload a video file to the API
+@app.post("/upload_video")
+async def upload_video(video: UploadFile = File(...)):
+    # Read video content
+    video_data = await video.read()
+
+    # Check video size (limit to 20MB)
+    if len(video_data) > MAX_VIDEO_SIZE:
+        return {"error": f"Video too large, must be {MAX_VIDEO_SIZE / (1024 * 1024)}MB or less"}
+
+    # Save the video as the latest video
+    with open(LATEST_VIDEO_PATH, "wb") as f:
+        f.write(video_data)
+
+    # Notify all connected WebSocket clients about the new video
+    for client in connected_clients:
+        try:
+            await client.send_text("new_video_uploaded")
+        except Exception as e:
+            print(f"Failed to notify client: {e}")
+
+    return {"message": "Video uploaded successfully"}
+
+# Endpoint for ESP32 or clients to get the latest image
 @app.get("/get_latest_image")
 async def get_latest_image():
     if os.path.exists(LATEST_IMAGE_PATH):
-        return FileResponse(LATEST_IMAGE_PATH, media_type='image/gif')  # Change to 'image/gif'
+        return FileResponse(LATEST_IMAGE_PATH, media_type='image/jpeg')
     else:
         return {"error": "No image available"}
+
+# Endpoint for clients to get the latest MP3 file
+@app.get("/get_latest_mp3")
+async def get_latest_mp3():
+    if os.path.exists(LATEST_MP3_PATH):
+        return FileResponse(LATEST_MP3_PATH, media_type='audio/mpeg')
+    else:
+        return {"error": "No MP3 available"}
+
+# Endpoint for clients to get the latest video file
+@app.get("/get_latest_video")
+async def get_latest_video():
+    if os.path.exists(LATEST_VIDEO_PATH):
+        return FileResponse(LATEST_VIDEO_PATH, media_type='video/mp4')
+    else:
+        return {"error": "No video available"}
+
+# Endpoint to upload a GIF to the API
+@app.post("/upload_gif")
+async def upload_gif(gif: UploadFile = File(...)):
+    # Read GIF content
+    gif_data = await gif.read()
+
+    # Check GIF size (limit to 10MB)
+    if len(gif_data) > MAX_GIF_SIZE:
+        return {"error": f"GIF too large, must be {MAX_GIF_SIZE / (1024 * 1024)}MB or less"}
+
+    # Save the GIF as the latest GIF
+    with open(LATEST_GIF_PATH, "wb") as f:
+        f.write(gif_data)
+
+    # Notify all connected WebSocket clients about the new GIF
+    for client in connected_clients:
+        try:
+            await client.send_text("new_gif_uploaded")
+        except Exception as e:
+            print(f"Failed to notify client: {e}")
+
+    return {"message": "GIF uploaded successfully"}
+
+# Endpoint for clients to get the latest GIF file
+@app.get("/get_latest_gif")
+async def get_latest_gif():
+    if os.path.exists(LATEST_GIF_PATH):
+        return FileResponse(LATEST_GIF_PATH, media_type='image/gif')
+    else:
+        return {"error": "No GIF available"}
+
+
 
 # WebSocket endpoint for real-time notifications
 @app.websocket("/ws")
@@ -61,3 +173,6 @@ async def websocket_endpoint(websocket: WebSocket):
     except Exception as e:
         print(f"WebSocket error: {e}")
         connected_clients.remove(websocket)  # Clean up the client on any other error
+
+
+
